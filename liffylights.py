@@ -1,6 +1,3 @@
-#!/usr/bin/python
-# -*- coding: utf-8 -*-
-
 '''
 liffylights by TangoAlpha - LIFX Python library
 
@@ -20,8 +17,6 @@ import ipaddress
 import struct
 from struct import pack
 from enum import IntEnum
-
-__version__ = '0.3'
 
 RETRIES = 10                  # number of packet send retries
 DELAY = 0.05                  # delay between retries
