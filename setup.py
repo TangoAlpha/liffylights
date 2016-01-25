@@ -1,15 +1,17 @@
-from setuptools import setup
+#!/usr/bin/env python3
+
+from setuptools import setup, find_packages
 
 setup(
     name='liffylights',
-    version=0.4,
+    packages=['liffylights'],
+    version=0.6,
+    description='LIFX Python library',
     author='TangoAlpha',
     author_email='liffylights@attwood.org',
     url='https://github.com/TangoAlpha/liffylights',
-    license='GPL',
-    description='LIFX Python library',
-    long_description='LIFX Python library',
-    py_modules=['liffylights'],
+    license='MIT',
+    keywords=['homeassistant'],
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",
