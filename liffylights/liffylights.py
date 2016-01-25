@@ -18,11 +18,9 @@ import struct
 from struct import pack
 from enum import IntEnum
 
-RETRIES = 10                  # number of packet send retries
-DELAY = 0.05                  # delay between retries
+DELAY = 0.1                   # delay between retries
 UDP_PORT = 56700              # udp port for listening socket
 UDP_IP = "0.0.0.0"            # address for listening socket
-MAX_ACK_AGE = 1               # maximum ACK age in seconds
 BUFFERSIZE = 1024             # socket buffer size
 SHORT_MAX = 65535             # short int maximum
 BYTE_MAX = 255                # byte maximum
@@ -268,7 +266,7 @@ class LiffyLights():
             with self._packet_lock:
                 self._packets[:] = [packet for packet in self._packets
                                     if not self.packet_timeout(packet)]
-            time.sleep(0.2)
+            time.sleep(DELAY)
 
     # pylint: disable=too-many-locals,too-many-statements,too-many-branches
     def packet_listener(self):
