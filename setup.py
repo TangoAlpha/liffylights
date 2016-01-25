@@ -4,8 +4,8 @@ from setuptools import setup, find_packages
 
 setup(
     name='liffylights',
-    packages=['liffylights'],
-    version='0.8.3',
+    py_modules=['liffylights'],
+    version='0.8.6',
     description='LIFX Python library',
     author='TangoAlpha',
     author_email='liffylights@attwood.org',
