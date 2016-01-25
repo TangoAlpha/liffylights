@@ -3,7 +3,7 @@ liffylights by TangoAlpha - LIFX Python library
 
 https://github.com/TangoAlpha/liffylights
 
-Published under the GPL license - See LICENSE file for more details.
+Published under the MIT license - See LICENSE file for more details.
 
 Not associated with or endorsed by LiFi Labs, Inc. (http://www.lifx.com/)
 '''
@@ -104,10 +104,14 @@ class LiffyLights():
         self._listener.daemon = True
         self._listener.start()
 
-        self._queue = queue.Queue(maxsize=256)
         self._manager = threading.Thread(target=self.packet_manager)
         self._manager.daemon = True
         self._manager.start()
+
+        self._cmdqueue = queue.Queue(maxsize=255)
+        self._command_sender = threading.Thread(target=self.command_sender)
+        self._command_sender.daemon = True
+        self._command_sender.start()
 
         if server_addr is None:
             # no specific server address given, use hostname
@@ -230,15 +234,6 @@ class LiffyLights():
 
         return self.gen_packet(sequence, PayloadType.SETPOWER2, payload)
 
-    def packet_timeout(self, packet):
-        if time.time() >= packet["sent"]:
-            return True
-
-        # resend command
-        self.send_command(packet)
-
-        return False
-
     def packet_ack(self, packet, sequence):
         if packet["sequence"] == sequence:
             if packet["payloadtype"] == PayloadType.SETCOLOR:
@@ -259,9 +254,17 @@ class LiffyLights():
     def process_packet(self, sequence):
         with self._packet_lock:
             self._packets[:] = [packet for packet in self._packets
-                                if self.packet_ack(packet, sequence)]
+                                if not self.packet_ack(packet, sequence)]
 
-    # pylint: disable=too-many-locals,too-many-statements,too-many-branches
+    def packet_timeout(self, packet):
+        if time.time() >= packet["sent"]:
+            return True
+
+        # resend command
+        self._cmdqueue.put(packet)
+
+        return False
+
     def packet_manager(self):
         while True:
             with self._packet_lock:
@@ -364,50 +367,59 @@ class LiffyLights():
             except Exception:
                 pass
 
-    def send_command(self, cmd):
-        """ Send command to bulb. """
-        ipaddr = cmd["target"]
+    def command_sender(self):
+        """ Command sender. """
 
-        payload = None
+        while True:
+            try:
+                cmd = self._cmdqueue.get()
 
-        seq = self.get_sequence()
+                ipaddr = cmd["target"]
 
-        payloadtype = cmd["payloadtype"]
+                payload = None
 
-        if payloadtype == PayloadType.SETCOLOR:
-            payload = self.gen_payload_setcolor(seq,
-                                                cmd["hue"],
-                                                cmd["sat"],
-                                                cmd["bri"],
-                                                cmd["kel"],
-                                                cmd["fade"])
+                # get next sequence number if we haven't got one
+                if "sequence" not in cmd:
+                    cmd["sequence"] = self.get_sequence()
 
-        elif payloadtype == PayloadType.SETPOWER2:
-            payload = self.gen_payload_setpower(seq,
-                                                cmd["power"],
-                                                cmd["fade"])
+                payloadtype = cmd["payloadtype"]
 
-        elif payloadtype == PayloadType.GET:
-            payload = self.gen_payload_get(seq)
+                if payloadtype == PayloadType.SETCOLOR:
+                    payload = self.gen_payload_setcolor(cmd["sequence"],
+                                                        cmd["hue"],
+                                                        cmd["sat"],
+                                                        cmd["bri"],
+                                                        cmd["kel"],
+                                                        cmd["fade"])
 
-        if payload is not None:
-            cmd["sequence"] = seq
+                elif payloadtype == PayloadType.SETPOWER2:
+                    payload = self.gen_payload_setpower(cmd["sequence"],
+                                                        cmd["power"],
+                                                        cmd["fade"])
 
-            with self._send_lock:
-                cmd["sent"] = time.time()
+                elif payloadtype == PayloadType.GET:
+                    payload = self.gen_payload_get(cmd["sequence"])
 
-                try:
-                    self._sock.sendto(payload, (ipaddr, UDP_PORT))
+                if payload is not None:
+                    with self._send_lock:
+                        cmd["sent"] = time.time()
 
-                    # set timeout
-                    cmd["sent"] += ACK_TIMEOUT
+                        try:
+                            self._sock.sendto(payload, (ipaddr, UDP_PORT))
 
-                # pylint: disable=broad-except
-                except Exception:
-                    pass
+                            # set timeout
+                            cmd["sent"] += ACK_TIMEOUT
 
-            with self._packet_lock:
-                self._packets.append(cmd)
+                        # pylint: disable=broad-except
+                        except Exception:
+                            pass
+
+                    with self._packet_lock:
+                        self._packets.append(cmd)
+
+            # pylint: disable=broad-except
+            except Exception:
+                pass
 
     def set_power(self, ipaddr, power, fade):
         """ Send setpower message. """
@@ -415,7 +427,7 @@ class LiffyLights():
                "target": ipaddr,
                "power": power,
                "fade": fade}
-        self.send_command(cmd)
+        self._cmdqueue.put(cmd)
 
     def set_color(self, ipaddr, hue, sat, bri, kel, fade):
         """ Send setcolor message. """
@@ -426,4 +438,4 @@ class LiffyLights():
                "bri": bri,
                "kel": kel,
                "fade": fade}
-        self.send_command(cmd)
+        self._cmdqueue.put(cmd)
