@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 
-from setuptools import setup, find_packages
+from setuptools import setup
 
 setup(
     name='liffylights',
     py_modules=['liffylights'],
-    version='0.8.6',
+    version='0.8.8',
     description='LIFX Python library',
     author='TangoAlpha',
     author_email='liffylights@attwood.org',
@@ -15,7 +15,7 @@ setup(
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",
-        "License :: OSI Approved :: GNU General Public License v2 or later (GPLv2+)",
+        "License :: OSI Approved :: MIT License",
         "Operating System :: Microsoft :: Windows",
         "Operating System :: POSIX :: Linux",
         "Programming Language :: Python :: 3 :: Only",
