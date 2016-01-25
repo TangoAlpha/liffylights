@@ -82,7 +82,7 @@ class Power(IntEnum):
     BULB_OFF = 0
 
 
-class liffylights():
+class LiffyLights():
     """ Provides liffylights base class. """
     def __init__(self, device_callback, power_callback, color_callback,
                  server_addr=None, broadcast_addr=None):

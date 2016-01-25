@@ -1,1 +1,1 @@
-__all__ = ['PayloadType', 'Power', 'liffylights']
+__all__ = ['PayloadType', 'Power', 'LiffyLights']
