@@ -193,7 +193,7 @@ class liffylights():
 
         return packet
 
-    def gen_payload_setcolor(self, sequence, hue, sat, bri, kel):
+    def gen_payload_setcolor(self, sequence, hue, sat, bri, kel, fade):
         """ Generate "setcolor" packet payload. """
         hue = min(max(hue, HUE_MIN), HUE_MAX)
         sat = min(max(sat, SATURATION_MIN), SATURATION_MAX)
@@ -205,14 +205,14 @@ class liffylights():
         saturation = pack("<H", sat)
         brightness = pack("<H", bri)
         kelvin = pack("<H", kel)
-        reserved2 = pack("<L", 0)
+        duration = pack("<I", fade)
 
         payload = bytearray(reserved1)
         payload.extend(hue)
         payload.extend(saturation)
         payload.extend(brightness)
         payload.extend(kelvin)
-        payload.extend(reserved2)
+        payload.extend(duration)
 
         return self.gen_packet(sequence, PayloadType.SETCOLOR, payload)
 
@@ -221,10 +221,10 @@ class liffylights():
         # generate payload for Get message
         return self.gen_packet(sequence, PayloadType.GET)
 
-    def gen_payload_setpower(self, sequence, power):
+    def gen_payload_setpower(self, sequence, power, fade):
         """ Generate "setpower" packet payload. """
         level = pack("<H", Power.BULB_OFF if power == 0 else Power.BULB_ON)
-        duration = pack("<L", 0)
+        duration = pack("<I", fade)
 
         payload = bytearray(level)
         payload.extend(duration)
@@ -376,11 +376,17 @@ class liffylights():
         payloadtype = cmd["payloadtype"]
 
         if payloadtype == PayloadType.SETCOLOR:
-            payload = self.gen_payload_setcolor(seq, cmd["hue"], cmd["sat"],
-                                                cmd["bri"], cmd["kel"])
+            payload = self.gen_payload_setcolor(seq,
+                                                cmd["hue"],
+                                                cmd["sat"],
+                                                cmd["bri"],
+                                                cmd["kel"],
+                                                cmd["fade"])
 
         elif payloadtype == PayloadType.SETPOWER2:
-            payload = self.gen_payload_setpower(seq, cmd["power"])
+            payload = self.gen_payload_setpower(seq,
+                                                cmd["power"],
+                                                cmd["fade"])
 
         elif payloadtype == PayloadType.GET:
             payload = self.gen_payload_get(seq)
@@ -402,19 +408,21 @@ class liffylights():
             with self._packet_lock:
                 self._packets.append(cmd)
 
-    def set_power(self, ipaddr, power):
+    def set_power(self, ipaddr, power, fade):
         """ Send setpower message. """
         cmd = {"payloadtype": PayloadType.SETPOWER2,
                "target": ipaddr,
-               "power": power}
+               "power": power,
+               "fade": fade}
         self.send_command(cmd)
 
-    def set_color(self, ipaddr, hue, sat, bri, kel):
+    def set_color(self, ipaddr, hue, sat, bri, kel, fade):
         """ Send setcolor message. """
         cmd = {"payloadtype": PayloadType.SETCOLOR,
                "target": ipaddr,
                "hue": hue,
                "sat": sat,
                "bri": bri,
-               "kel": kel}
+               "kel": kel,
+               "fade": fade}
         self.send_command(cmd)
