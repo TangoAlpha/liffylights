@@ -26,7 +26,7 @@ BYTE_MAX = 255                # byte maximum
 SEQUENCE_BASE = 1             # packet sequence base (0 is for bulb sends)
 SEQUENCE_COUNT = 255          # packet sequence count
 ACK_RESEND = 0.2              # resend packets every n seconds
-ACK_TIMEOUT = 2               # seconds before giving up on packet
+ACK_TIMEOUT = 5               # seconds before giving up on packet
 
 HUE_MIN = 0
 HUE_MAX = 65535
@@ -231,7 +231,7 @@ class LiffyLights():
         return self.gen_packet(sequence, PayloadType.SETPOWER2, payload)
 
     def packet_timeout(self, packet):
-        if packet["sent"] >= time.time():
+        if time.time() >= packet["sent"]:
             return True
 
         # resend command
