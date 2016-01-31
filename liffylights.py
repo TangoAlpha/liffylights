@@ -22,7 +22,7 @@ UDP_PORT = 56700              # UDP port for listening socket
 BUFFERSIZE = 1024             # socket buffer size
 SHORT_MAX = 65535             # short int maximum
 BYTE_MAX = 255                # byte value maximum
-ACK_RESEND = 0.2              # resend packets every n seconds
+ACK_RESEND = 0.5              # resend packets every n seconds
 ACK_TIMEOUT = 5               # seconds before giving up on packet
 SEQUENCE_BASE = 1             # packet sequence base (0 is for bulb sends)
 SEQUENCE_COUNT = 255          # packet sequence count
@@ -236,14 +236,18 @@ class LiffyLights():
                 self._packets[:] = [packet for packet in self._packets
                                     if self._packet_ack(packet, sequence)]
 
-    def _packet_timeout(self, packet):
+    def _packet_timeout(self, packet, now):
         """ Check packet for timeout. """
-        if time.time() >= packet["sent"]:
+        if now >= packet["timeout"]:
+            # timed out
             return False
 
-        # resend command
-        self._queue.put(packet)
+        if now >= packet["resend"]:
+            # resend command
+            self._send_command(packet)
+            return False
 
+        # keep packet
         return True
 
     def _packet_manager(self):
@@ -251,10 +255,14 @@ class LiffyLights():
         while True:
             if self._packets:
                 with self._packet_lock:
-                    self._packets[:] = [packet for packet in self._packets
-                                        if self._packet_timeout(packet)]
+                    now = time.time()
 
-            time.sleep(ACK_RESEND)
+                    self._packets[:] = \
+                        [packet for packet in self._packets
+                         if self._packet_timeout(packet, now)]
+
+            # c.f. nyquist
+            time.sleep(ACK_RESEND / 2)
 
     # pylint: disable=too-many-locals,too-many-statements,too-many-branches
     def _packet_listener(self):
@@ -353,6 +361,10 @@ class LiffyLights():
             except Exception:
                 pass
 
+    def _send_command(self, cmd):
+        """ Add to command queue. """
+        self._queue.put(cmd)
+
     def _command_sender(self):
         """ Command sender. """
         sequence = -1
@@ -361,40 +373,43 @@ class LiffyLights():
             cmd = self._queue.get()
 
             ipaddr = cmd["target"]
+            payloadtype = cmd["payloadtype"]
 
-            payload = None
-
-            # get next sequence number if we haven't got one
             if "sequence" not in cmd:
+                # get next sequence number if we haven't got one
                 sequence = (sequence + 1) % SEQUENCE_COUNT
                 cmd["sequence"] = sequence + SEQUENCE_BASE
 
-            payloadtype = cmd["payloadtype"]
+            packet = None
 
             if payloadtype == PayloadType.SETCOLOR:
-                payload = self._gen_packet_setcolor(cmd["sequence"],
-                                                    cmd["hue"],
-                                                    cmd["sat"],
-                                                    cmd["bri"],
-                                                    cmd["kel"],
-                                                    cmd["fade"])
+                packet = self._gen_packet_setcolor(cmd["sequence"],
+                                                   cmd["hue"],
+                                                   cmd["sat"],
+                                                   cmd["bri"],
+                                                   cmd["kel"],
+                                                   cmd["fade"])
 
             elif payloadtype == PayloadType.SETPOWER2:
-                payload = self._gen_packet_setpower(cmd["sequence"],
-                                                    cmd["power"],
-                                                    cmd["fade"])
+                packet = self._gen_packet_setpower(cmd["sequence"],
+                                                   cmd["power"],
+                                                   cmd["fade"])
 
             elif payloadtype == PayloadType.GET:
-                payload = self._gen_packet_get(cmd["sequence"])
+                packet = self._gen_packet_get(cmd["sequence"])
 
-            if payload is not None:
-                cmd["sent"] = time.time()
-
+            if packet is not None:
                 try:
-                    self._sock.sendto(payload, (ipaddr, UDP_PORT))
+                    self._sock.sendto(packet, (ipaddr, UDP_PORT))
+
+                    now = time.time()
 
                     # set timeout
-                    cmd["sent"] += ACK_TIMEOUT
+                    if "timeout" not in cmd:
+                        cmd["timeout"] = now + ACK_TIMEOUT
+
+                    # set earliest resend time
+                    cmd["resend"] = now + ACK_RESEND
 
                     with self._packet_lock:
                         self._packets.append(cmd)
@@ -412,7 +427,7 @@ class LiffyLights():
         cmd = {"payloadtype": PayloadType.GET,
                "target": ipaddr}
 
-        self._queue.put(cmd)
+        self._send_command(cmd)
 
     def set_power(self, ipaddr, power, fade):
         """ Send SETPOWER message. """
@@ -421,7 +436,7 @@ class LiffyLights():
                "power": power,
                "fade": fade}
 
-        self._queue.put(cmd)
+        self._send_command(cmd)
 
     def set_color(self, ipaddr, hue, sat, bri, kel, fade):
         """ Send SETCOLOR message. """
@@ -433,4 +448,4 @@ class LiffyLights():
                "kel": kel,
                "fade": fade}
 
-        self._queue.put(cmd)
+        self._send_command(cmd)
