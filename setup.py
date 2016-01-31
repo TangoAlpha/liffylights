@@ -5,7 +5,7 @@ from setuptools import setup
 setup(
     name='liffylights',
     py_modules=['liffylights'],
-    version='0.9.2',
+    version='0.9.3',
     description='LIFX Python library',
     author='TangoAlpha',
     author_email='liffylights@attwood.org',
