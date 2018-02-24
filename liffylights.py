@@ -161,7 +161,7 @@ class LiffyLights():
             contents.extend(payload)
 
         # get packet size
-        size = pack("<H", len(contents) << 1)
+        size = pack("<H", len(contents) + 2)
 
         # assemble complete packet
         packet = bytearray(size)
